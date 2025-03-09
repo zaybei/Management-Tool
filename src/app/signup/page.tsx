@@ -8,13 +8,15 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'member'>('member');
-  const [error, setError] = useState<string | null>(null); // Updated type
+  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false); // Loading state
   const router = useRouter();
 
-  const handleSignup = async (e: FormEvent<HTMLFormElement>) => { // Updated type
+  const handleSignup = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+    setLoading(true); // Set loading to true
 
     try {
       const { data, error: signupError } = await supabase.auth.signUp({
@@ -43,6 +45,8 @@ export default function Signup() {
       } else {
         setError('An unexpected error occurred');
       }
+    } finally {
+      setLoading(false); // Reset loading state
     }
   };
 
@@ -51,7 +55,6 @@ export default function Signup() {
     if (success) {
       const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          // Fetch the user's role from the users table
           const { data: userData, error: userError } = await supabase
             .from('users')
             .select('role')
@@ -143,9 +146,10 @@ export default function Signup() {
           {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition duration-300"
+            className={`w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition duration-300 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={loading} // Disable button while loading
           >
-            Sign Up
+            {loading ? 'Loading...' : 'Sign Up'}
           </button>
         </form>
       )}

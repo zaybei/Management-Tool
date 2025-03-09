@@ -7,12 +7,14 @@ export default function Signin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false); // Loading state
 
   const router = useRouter();
 
   const handleSignin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+    setLoading(true); // Set loading to true
 
     try {
       const { data, error: signinError } = await supabase.auth.signInWithPassword({
@@ -48,6 +50,9 @@ export default function Signin() {
         setError('An unexpected error occurred');
       }
     }
+    finally {
+      setLoading(false); // Reset loading state
+    }
   };
 
   return (
@@ -82,11 +87,12 @@ export default function Signin() {
         </div>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         <button
-          type="submit"
-          className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition duration-300"
-        >
-          Sign In
-        </button>
+            type="submit"
+            className={`w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition duration-300 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={loading} // Disable button while loading
+          >
+            {loading ? 'Loading...' : 'Sign In'}
+          </button>
       </form>
     </div>
   );
