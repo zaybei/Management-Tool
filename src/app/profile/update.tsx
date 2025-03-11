@@ -1,24 +1,20 @@
 'use client';
 import { useState, FormEvent } from 'react';
 import { supabase } from '../../utils/supabaseClient';
-import { useRouter } from 'next/navigation';
 
 export default function UpdateProfile() {
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const router = useRouter();
 
-const handleUpdate = async (e: FormEvent<HTMLFormElement>) => {
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-
+  const handleUpdate = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
     try {
-    if (userError || !user) throw new Error('User not authenticated');
-
-      if (!user) throw new Error('User not authenticated');
+      if (userError || !user) throw new Error('User not authenticated');
 
       // Update user metadata
       const { error: updateError } = await supabase
