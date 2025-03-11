@@ -1,57 +1,60 @@
 'use client';
 import { useState, FormEvent } from 'react';
-import { supabase } from '../../utils/supabaseClient';
+import { supabase } from '@/utils/supabaseClient';
 import { useRouter } from 'next/navigation';
 
 export default function Signin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false); // Loading state
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
 
   const handleSignin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    setLoading(true); // Set loading to true
+    setLoading(true);
 
     try {
+      // 🔹 Attempt user sign-in
       const { data, error: signinError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signinError) {
-        throw signinError;
+        setError(signinError.message);
+        return;
       }
 
-      // Fetch the user's role from the users table
+      if (!data.user) {
+        setError('User authentication failed.');
+        return;
+      }
+
+      // 🔹 Fetch the user's role from the database
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('role')
-        .eq('id', data.user?.id)
+        .eq('id', data.user.id)
         .single();
 
-      if (userError) {
-        throw userError;
+      if (userError || !userData) {
+        setError('User role could not be determined.');
+        return;
       }
 
-      // Redirect based on role
+      // 🔹 Redirect based on role
       if (userData.role === 'admin') {
         router.push('/dashboard/admin');
       } else {
         router.push('/dashboard/member');
       }
     } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('An unexpected error occurred');
-      }
-    }
-    finally {
-      setLoading(false); // Reset loading state
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -87,12 +90,12 @@ export default function Signin() {
         </div>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         <button
-            type="submit"
-            className={`w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition duration-300 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={loading} // Disable button while loading
-          >
-            {loading ? 'Loading...' : 'Sign In'}
-          </button>
+          type="submit"
+          className={`w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition duration-300 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={loading}
+        >
+          {loading ? 'Loading...' : 'Sign In'}
+        </button>
       </form>
     </div>
   );

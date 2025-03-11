@@ -16,6 +16,7 @@ export default function AdminDashboard() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [projectCount, setProjectCount] = useState<number | null>(null);
+  const [memberCount, setMemberCount] = useState<number | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -23,10 +24,12 @@ export default function AdminDashboard() {
       try {
         setLoading(true);
 
-        const [{ data: authData, error: authError }, { count, error: projectError }] = await Promise.all([
-          supabase.auth.getUser(),
-          supabase.from('projects').select('*', { count: 'exact' }),
-        ]);
+        const [{ data: authData, error: authError }, { count: projectCount, error: projectError }, { count: memberCount, error: memberError }] =
+          await Promise.all([
+            supabase.auth.getUser(),
+            supabase.from('projects').select('*', { count: 'exact' }),
+            supabase.from('users').select('*', { count: 'exact' }),
+          ]);
 
         if (authError || !authData?.user) {
           router.push('/signin');
@@ -49,7 +52,10 @@ export default function AdminDashboard() {
         });
 
         if (projectError) console.warn('Project Fetch Error:', projectError);
-        setProjectCount(count ?? 0);
+        if (memberError) console.warn('Member Fetch Error:', memberError);
+
+        setProjectCount(projectCount ?? 0);
+        setMemberCount(memberCount ?? 0);
       } catch (err) {
         setError('Unexpected error occurred.');
         console.error('Error fetching data:', err);
@@ -89,6 +95,9 @@ export default function AdminDashboard() {
 
         {/* Project Count Card */}
         <DashboardCard href="/dashboard/projects" title="Projects" count={projectCount} />
+
+        {/* Members Count Card */}
+        <DashboardCard href="/dashboard/members" title="Members" count={memberCount} />
 
         {/* Create Project Button */}
         <Link href="/dashboard/create-project">
