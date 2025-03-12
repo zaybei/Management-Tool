@@ -1,6 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+
+import { useEffect, useState, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import { supabase } from '../../../../utils/supabaseClient';
 
 interface Task {
@@ -30,7 +31,7 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params?.id as string;
 
-  const [project, setProject] = useState<{ id: string; name: string } | null>(null);
+  const [, setProject] = useState<{ id: string; name: string } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
@@ -39,17 +40,9 @@ export default function ProjectDetailPage() {
   const [comments, setComments] = useState<{ [key: string]: Comment[] }>({});
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!projectId) return;
-    (async () => {
-      await fetchProjectDetails(projectId);
-      await fetchUsers();
-    })();
-  }, [projectId]);
-
-  const fetchProjectDetails = async (id: string) => {
+  // Wrap `fetchProjectDetails` in `useCallback` to keep it stable
+  const fetchProjectDetails = useCallback(async (id: string) => {
     setLoading(true);
     const { data: projectData } = await supabase.from('projects').select('*').eq('id', id).single();
     const { data: taskData } = await supabase.from('tasks').select('*').eq('project_id', id).order('position', { ascending: true });
@@ -57,7 +50,17 @@ export default function ProjectDetailPage() {
     setTasks(taskData || []);
     fetchComments(taskData || []);
     setLoading(false);
-  };
+  }, []); // No dependencies, so this function is stable
+
+  const fetchData = useCallback(async () => {
+    if (!projectId) return;
+    await fetchProjectDetails(projectId);
+    await fetchUsers();
+  }, [projectId, fetchProjectDetails]); // `fetchProjectDetails` is stable now
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const fetchUsers = async () => {
     const { data: userData } = await supabase.from('users').select('id, full_name');
@@ -118,7 +121,6 @@ export default function ProjectDetailPage() {
     fetchProjectDetails(projectId);
   };
 
-  // New function to update assigned user
   const handleUpdateAssignee = async (taskId: string, newAssignee: string) => {
     if (!newAssignee) return;
     await supabase.from('tasks').update({ assigned_to: newAssignee }).eq('id', taskId);

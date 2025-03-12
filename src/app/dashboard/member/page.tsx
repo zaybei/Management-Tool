@@ -5,8 +5,18 @@ import { supabase } from '../../../utils/supabaseClient';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  due_date?: string | null;
+  project?: { name?: string };
+}
+
 export default function MemberDashboard() {
-  const [tasks, setTasks] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -38,14 +48,19 @@ export default function MemberDashboard() {
       if (error) {
         console.error('Error fetching tasks:', error);
         setError('Failed to fetch tasks');
-      } else {
-        setTasks(data ?? []);
+        setLoading(false);
+        return;
       }
+  
+      // Ensure that data is always an array
+      setTasks(data as Task[] ?? []);
       setLoading(false);
     };
   
     fetchAssignedTasks();
   }, []);
+  
+  
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">

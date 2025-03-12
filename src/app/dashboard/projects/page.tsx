@@ -12,7 +12,7 @@ interface Project {
   description?: string;
   created_at: string;
   owner_id: string;
-  users?: { full_name?: string } | null; // Ensure it's optional or null
+  users?: { full_name?: string }[] | null; // Ensure it's an array
   creator_name: string;
 }
 
