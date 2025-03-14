@@ -68,14 +68,12 @@ export default function MembersPage() {
             <div key={user.id} className="bg-gray-800 p-5 rounded-lg shadow-lg flex flex-col items-center">
               <h3 className="text-xl font-semibold">{user.full_name || 'No Name'}</h3>
               <p className="text-gray-400">{user.email}</p>
-              {activeTab === 'member' && (
-                <button
-                  onClick={() => handleDeleteUser(user.id)}
-                  className="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all"
-                >
-                  Delete User
-                </button>
-              )}
+              <button
+                onClick={() => handleDeleteUser(user.id)}
+                className="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all"
+              >
+                Delete User
+              </button>
             </div>
           ))}
         </div>
