@@ -37,6 +37,67 @@ interface Project {
   due_date?: string;
 }
 
+const TaskCard = ({ task, users, handleSelectTask, getStatusBgColor, getPriorityColor, handleUpdateStatus, handleDeleteTask }: {
+  task: Task;
+  users: User[];
+  handleSelectTask: (task: Task) => void;
+  getStatusBgColor: (status?: string) => string;
+  getPriorityColor: (priority?: string) => string;
+  handleUpdateStatus: (taskId: string, newStatus: string) => Promise<void>;
+  handleDeleteTask: (taskId: string) => Promise<void>;
+}) => (
+  <div
+    key={task.id}
+    className={`bg-gray-800 rounded-lg shadow-md p-4 ${getStatusBgColor(task.status)} cursor-pointer hover:bg-gray-600
+                  hover:bg-opacity-30
+                  ${task.status === 'done' ? 'hover:bg-green-300' : ''}
+                  ${task.status === 'in_progress' ? 'hover:bg-yellow-300' : ''}
+                  ${task.status === 'todo' ? 'hover:bg-blue-300' : ''}
+                 `}
+    onClick={() => handleSelectTask(task)}
+  >
+    <h4 className="text-lg font-semibold">{task.title}</h4>
+    <p className="text-sm text-gray-400 mt-1">{task.description}</p>
+
+    <div className="flex justify-between items-center mt-3">
+      <span className={`text-sm font-medium ${getPriorityColor(task.priority)}`}>
+        {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Medium'}
+      </span>
+      {task.due_date && (
+        <span className="text-sm text-gray-400">Due: {new Date(task.due_date).toLocaleDateString()}</span>
+      )}
+    </div>
+
+    <div className="flex items-center justify-between mt-3">
+      <div className="flex space-x-1">
+        {task.assigned_to && (
+          <div className="flex items-center">
+            <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-xs">
+              {users.find(user => user.id === task.assigned_to)?.full_name?.charAt(0) || '?'}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <select
+        value={task.status || 'todo'}
+        onChange={(e) => handleUpdateStatus(task.id, e.target.value)}
+        className="text-xs p-1 rounded bg-gray-700 text-white"
+      >
+        <option value="todo">To Do</option>
+        <option value="in_progress">In Progress</option>
+        <option value="done">Done</option>
+      </select>
+      <button
+        onClick={() => handleDeleteTask(task.id)}
+        className="text-xs p-1 rounded bg-red-700 text-white"
+      >
+        Delete
+      </button>
+    </div>
+  </div>
+);
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params?.id as string;
@@ -53,7 +114,7 @@ export default function ProjectDetailPage() {
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'todo' | 'in_progress' | 'done'>('todo');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const fetchProjectDetails = useCallback(async (id: string) => {
     setLoading(true);
@@ -180,6 +241,23 @@ export default function ProjectDetailPage() {
     } catch (err) {
       console.error('Exception in handleUpdateStatus:', err);
     }
+  };
+
+const handleDeleteTask = async (taskId: string) => {
+  try {
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+    if (error) {
+      console.error('Error deleting task:', error);
+      return;
+    }
+    setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+  } catch (err) {
+    console.error('Exception in handleDeleteTask:', err);
+  }
+};
+
+  const handleSelectTask = (task: Task) => {
+    setSelectedTask(task);
   };
 
   // Calculate task stats
@@ -328,191 +406,132 @@ export default function ProjectDetailPage() {
       <div className="w-full max-w-4xl">
         <h2 className="text-2xl font-bold mb-4">Project Tasks</h2>
 
-        {/* Tabs */}
-        <div className="flex border-b border-gray-700">
-          <button
-            className={`px-6 py-3 ${activeTab === 'todo' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'} rounded-t-lg`}
-            onClick={() => setActiveTab('todo')}
-          >
-            To Do ({tasksByStatus.todo.length})
-          </button>
-          <button
-            className={`px-6 py-3 ${activeTab === 'in_progress' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'} rounded-t-lg`}
-            onClick={() => setActiveTab('in_progress')}
-          >
-            In Progress ({tasksByStatus.in_progress.length})
-          </button>
-          <button
-            className={`px-6 py-3 ${activeTab === 'done' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'} rounded-t-lg`}
-            onClick={() => setActiveTab('done')}
-          >
-            Done ({tasksByStatus.done.length})
-          </button>
-        </div>
-
-        {/* Tab Content */}
-        <div className="py-4">
-          {activeTab === 'todo' && (
+        {/* Kanban Layout */}
+        <div className="flex gap-4">
+          {/* Todo Tasks */}
+          <div className="w-1/3 p-4 bg-gray-700 rounded-lg">
+            <h3 className="text-lg font-semibold mb-4 border-b pb-2">
+              To Do ({tasksByStatus.todo.length})
+            </h3>
             <div className="space-y-4">
               {tasksByStatus.todo.map((task) => (
-                <div key={task.id} className={`bg-gray-800 rounded-lg shadow-md p-4 ${getStatusBgColor(task.status)}`}>
-                  <h4 className="text-lg font-semibold">{task.title}</h4>
-                  <p className="text-sm text-gray-400 mt-1">{task.description}</p>
-
-                  <div className="flex justify-between items-center mt-3">
-                    <span className={`text-sm font-medium ${getPriorityColor(task.priority)}`}>
-                      {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Medium'}
-                    </span>
-                    {task.due_date && (
-                      <span className="text-sm text-gray-400">Due: {new Date(task.due_date).toLocaleDateString()}</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex space-x-1">
-                      {task.assigned_to && (
-                        <div className="flex items-center">
-                          <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-xs">
-                            {users.find(user => user.id === task.assigned_to)?.full_name?.charAt(0) || '?'}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <select
-                      value={task.status || 'todo'}
-                      onChange={(e) => handleUpdateStatus(task.id, e.target.value)}
-                      className="text-xs p-1 rounded bg-gray-700 text-white"
-                    >
-                      <option value="todo">To Do</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="done">Done</option>
-                    </select>
-                  </div>
-                </div>
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  users={users}
+                  handleSelectTask={handleSelectTask}
+                  getStatusBgColor={getStatusBgColor}
+                  getPriorityColor={getPriorityColor}
+                  handleUpdateStatus={handleUpdateStatus}
+                  handleDeleteTask={handleDeleteTask}
+                />
               ))}
             </div>
-          )}
-          {activeTab === 'in_progress' && (
+          </div>
+
+          {/* In Progress Tasks */}
+          <div className="w-1/3 p-4 bg-gray-700 rounded-lg">
+            <h3 className="text-lg font-semibold mb-4 border-b pb-2">
+              In Progress ({tasksByStatus.in_progress.length})
+            </h3>
             <div className="space-y-4">
               {tasksByStatus.in_progress.map((task) => (
-                <div key={task.id} className={`bg-gray-800 rounded-lg shadow-md p-4 ${getStatusBgColor(task.status)}`}>
-                  <h4 className="text-lg font-semibold">{task.title}</h4>
-                  <p className="text-sm text-gray-400 mt-1">{task.description}</p>
-
-                  <div className="flex justify-between items-center mt-3">
-                    <span className={`text-sm font-medium ${getPriorityColor(task.priority)}`}>
-                      {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Medium'}
-                    </span>
-                    {task.due_date && (
-                      <span className="text-sm text-gray-400">Due: {new Date(task.due_date).toLocaleDateString()}</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex space-x-1">
-                      {task.assigned_to && (
-                        <div className="flex items-center">
-                          <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-xs">
-                            {users.find(user => user.id === task.assigned_to)?.full_name?.charAt(0) || '?'}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <select
-                      value={task.status || 'todo'}
-                      onChange={(e) => handleUpdateStatus(task.id, e.target.value)}
-                      className="text-xs p-1 rounded bg-gray-700 text-white"
-                    >
-                      <option value="todo">To Do</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="done">Done</option>
-                    </select>
-                  </div>
-                </div>
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  users={users}
+                  handleSelectTask={handleSelectTask}
+                  getStatusBgColor={getStatusBgColor}
+                  getPriorityColor={getPriorityColor}
+                  handleUpdateStatus={handleUpdateStatus}
+                  handleDeleteTask={handleDeleteTask}
+                />
               ))}
             </div>
-          )}
-          {activeTab === 'done' && (
+          </div>
+
+          {/* Done Tasks */}
+          <div className="w-1/3 p-4 bg-gray-700 rounded-lg">
+            <h3 className="text-lg font-semibold mb-4 border-b pb-2">
+              Done ({tasksByStatus.done.length})
+            </h3>
             <div className="space-y-4">
               {tasksByStatus.done.map((task) => (
-                <div key={task.id} className={`bg-gray-800 rounded-lg shadow-md p-4 ${getStatusBgColor(task.status)}`}>
-                  <h4 className="text-lg font-semibold">{task.title}</h4>
-                  <p className="text-sm text-gray-400 mt-1">{task.description}</p>
-
-                  <div className="flex justify-between items-center mt-3">
-                    <span className={`text-sm font-medium ${getPriorityColor(task.priority)}`}>
-                      {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Medium'}
-                    </span>
-                    {task.due_date && (
-                      <span className="text-sm text-gray-400">Due: {new Date(task.due_date).toLocaleDateString()}</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex space-x-1">
-                      {task.assigned_to && (
-                        <div className="flex items-center">
-                          <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center text-xs">
-                            {users.find(user => user.id === task.assigned_to)?.full_name?.charAt(0) || '?'}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <select
-                      value={task.status || 'todo'}
-                      onChange={(e) => handleUpdateStatus(task.id, e.target.value)}
-                      className="text-xs p-1 rounded bg-gray-700 text-white"
-                    >
-                      <option value="todo">To Do</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="done">Done</option>
-                    </select>
-                  </div>
-                </div>
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  users={users}
+                  handleSelectTask={handleSelectTask}
+                  getStatusBgColor={getStatusBgColor}
+                  getPriorityColor={getPriorityColor}
+                  handleUpdateStatus={handleUpdateStatus}
+                  handleDeleteTask={handleDeleteTask}
+                />
               ))}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
       {/* Task Details Section */}
       <div className="w-full max-w-4xl mt-8">
-        <h2 className="text-2xl font-bold mb-4">Task Details</h2>
-        {tasks.map((task) => (
-          <div key={task.id} className="bg-gray-800 p-6 rounded-lg shadow-lg mt-4">
-            <h3 className="text-xl font-semibold">{task.title}</h3>
-            <p className="text-gray-300 mt-2">{task.description}</p>
-            <p className="text-sm text-gray-400 mt-2">Status: <span className="font-semibold">{task.status}</span></p>
-            <p className="text-sm text-gray-400 mt-2">Assigned to: {users.find(user => user.id === task.assigned_to)?.full_name || 'Unassigned'}</p>
+  <h2 className="text-2xl font-bold mb-4">Task Details</h2>
+  {tasks.map((task) => (
+    <div key={task.id} className="bg-gray-800 p-6 rounded-lg shadow-lg mt-4">
+      {/* Task Info */}
+      <h3 className="text-xl font-semibold">{task.title}</h3>
+      <p className="text-gray-300 mt-2">{task.description}</p>
 
-            {/* Dropdown to update assignee */}
-            <select
-              value={task.assigned_to || ''}
-              onChange={(e) => handleUpdateAssignee(task.id, e.target.value)}
-              className="w-full p-2 rounded bg-gray-700 text-white mt-2"
-            >
-              <option value="">Unassigned</option>
-              {users.map(user => (
-                <option key={user.id} value={user.id}>{user.full_name}</option>
-              ))}
-            </select>
+      {/* Status & Assignee */}
+      <div className="flex justify-between items-center mt-3 text-sm text-gray-400">
+        <p>Status: <span className="font-semibold text-blue-400">{task.status}</span></p>
+        <div className="flex items-center gap-2">
+          <span>Assigned to:</span>
+          <select
+            value={task.assigned_to || ''}
+            onChange={(e) => handleUpdateAssignee(task.id, e.target.value)}
+            className="bg-gray-700 text-white px-2 py-1 rounded-lg"
+          >
+            <option value="">Unassigned</option>
+            {users.map(user => (
+              <option key={user.id} value={user.id}>{user.full_name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-            <h4 className="text-lg font-semibold mt-4">Comments</h4>
-            <div className="max-h-32 overflow-y-auto bg-gray-700 p-2 rounded mt-2">
-              {comments[task.id]?.map((comment) => (
-                <p key={comment.id} className="text-gray-200 p-2 rounded">
-                  <strong>{comment.user_full_name}:</strong> {comment.content}
-                </p>
-              ))}
-            </div>
-            <input type="text" placeholder="Add a comment" value={newComment[task.id] || ''} onChange={(e) => setNewComment({ ...newComment, [task.id]: e.target.value })} className="w-full p-2 rounded bg-gray-700 text-white mt-2" />
-            <button onClick={() => handleAddComment(task.id)} className="w-full bg-green-500 px-4 py-2 rounded-lg mt-2">Post</button>
+      {/* Comments Section */}
+      <h4 className="text-lg font-semibold mt-4">Comments</h4>
+      <div className="max-h-40 overflow-y-auto bg-gray-700 p-3 rounded mt-2 space-y-2">
+        {comments[task.id]?.map((comment) => (
+          <div key={comment.id} className="bg-gray-600 p-2 rounded-lg">
+            <p className="text-gray-200">
+              <strong className="text-blue-400">{comment.user_full_name}:</strong> {comment.content}
+            </p>
+            <p className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleString()}</p>
           </div>
         ))}
       </div>
+
+      {/* Add Comment Input */}
+      <div className="mt-3 flex gap-2">
+        <input
+          type="text"
+          placeholder="Add a comment..."
+          value={newComment[task.id] || ''}
+          onChange={(e) => setNewComment({ ...newComment, [task.id]: e.target.value })}
+          className="w-full p-2 rounded bg-gray-700 text-white"
+        />
+        <button
+          onClick={() => handleAddComment(task.id)}
+          className="bg-green-500 px-4 py-2 rounded-lg"
+        >
+          Post
+        </button>
+      </div>
+    </div>
+  ))}
+</div>
     </div>
   );
 }
