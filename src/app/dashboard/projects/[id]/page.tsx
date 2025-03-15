@@ -114,7 +114,7 @@ export default function ProjectDetailPage() {
   const [newComment, setNewComment] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [, setSelectedTask] = useState<Task | null>(null);
 
   const fetchProjectDetails = useCallback(async (id: string) => {
     setLoading(true);
