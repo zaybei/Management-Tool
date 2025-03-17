@@ -12,6 +12,7 @@ interface Project {
   description?: string;
   created_at: string;
   owner_id: string;
+  due_date?: string;
   users?: { full_name?: string }[] | null; // Ensure it's an array
   creator_name: string;
 }
@@ -23,6 +24,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [newProjectDueDate, setNewProjectDueDate] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const router = useRouter();
 
@@ -81,14 +83,14 @@ export default function ProjectsPage() {
     // Insert new project (without full_name)
     const { data, error } = await supabase
       .from('projects')
-      .insert([{ name: newProjectName, description: newProjectDescription, owner_id }])
-      .select('id, name, description, created_at, owner_id');
-  
+      .insert([{ name: newProjectName, description: newProjectDescription, owner_id, due_date: newProjectDueDate }])
+      .select('id, name, description, created_at, owner_id, due_date');
+
     if (error) {
-      console.error('Error creating project:', error);
+      console.error('Error creating project:', error ? error : "Unknown error");
       return;
     }
-  
+
     if (data && data.length > 0) {
       const newProject = data[0];
   
@@ -153,6 +155,13 @@ export default function ProjectsPage() {
                 onChange={(e) => setNewProjectDescription(e.target.value)}
                 className="w-full p-2 mb-3 bg-gray-700 text-white rounded-lg"
               />
+              <input
+                type="date"
+                placeholder="Project Due Date"
+                value={newProjectDueDate}
+                onChange={(e) => setNewProjectDueDate(e.target.value)}
+                className="w-full p-2 mb-3 bg-gray-700 text-white rounded-lg"
+              />
               <div className="flex justify-end gap-3">
                 <button onClick={() => setShowCreateModal(false)} className="bg-gray-600 px-4 py-2 rounded-lg">Cancel</button>
                 <button onClick={handleCreateProject} className="bg-blue-500 px-4 py-2 rounded-lg">Create</button>
@@ -204,6 +213,11 @@ export default function ProjectsPage() {
               <p className="text-gray-500 text-sm mt-2">
                 Created on {new Date(project.created_at).toLocaleDateString()}
               </p>
+              {project.due_date && (
+                <p className="text-gray-500 text-sm mt-2">
+                  Due on {new Date(project.due_date).toLocaleDateString()}
+                </p>
+              )}
             </div>
           ))}
         </div>
