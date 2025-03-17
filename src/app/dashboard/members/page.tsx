@@ -13,6 +13,11 @@ export default function MembersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'admin' | 'member'>('member');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newFullName, setNewFullName] = useState('');
+  const [newRole, setNewRole] = useState<'admin' | 'member'>('member');
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -37,6 +42,62 @@ export default function MembersPage() {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!newEmail || !newPassword || !newFullName) {
+      return alert('Please fill in all fields.');
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email: newEmail,
+      password: newPassword,
+      options: {
+        data: {
+          full_name: newFullName,
+          role: newRole,
+        },
+      },
+    });
+
+    if (error) {
+      console.error('Error creating user:', error);
+      alert(error.message);
+    } else {
+      console.log('User created successfully!', data);
+
+      // Insert user data into the users table
+      if (data.user) {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: data.user.id,
+              email: newEmail,
+              full_name: newFullName,
+              role: newRole,
+            },
+          ]);
+
+        if (insertError) {
+          console.error('Error inserting user data:', insertError);
+          alert(insertError.message);
+        }
+      } else {
+        console.error('Error: data.user is null');
+        alert('Failed to create user. Please try again.');
+      }
+
+      // Fetch users again to update the list
+      const { data: userData, error: userError } = await supabase.from('users').select('id, full_name, email, role');
+      if (userError) console.error('Error fetching users:', userError);
+      else setUsers(userData || []);
+      setShowCreateModal(false);
+      setNewEmail('');
+      setNewPassword('');
+      setNewFullName('');
+      setNewRole('member');
+    }
+  };
+
   const filteredUsers = users.filter((user) => user.role === activeTab);
 
   return (
@@ -49,14 +110,59 @@ export default function MembersPage() {
           <button
             key={role}
             onClick={() => setActiveTab(role as 'admin' | 'member')}
-            className={`px-6 py-2 text-lg font-semibold rounded-lg transition-all duration-300 ${
-              activeTab === role ? 'bg-blue-500 text-white' : 'bg-gray-700 hover:bg-gray-600'
-            }`}
+            className={
+              "px-6 py-2 text-lg font-semibold rounded-lg transition-all duration-300 " +
+              (activeTab === role ? 'bg-blue-500 text-white' : 'bg-gray-700 hover:bg-gray-600')
+            }
           >
             {role === 'admin' ? 'Admins' : 'Members'}
           </button>
         ))}
       </div>
+
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg mb-4">
+        Create New User
+      </button>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 className="text-xl font-bold mb-4">Create New User</h2>
+            <input
+              type="email"
+              placeholder="Email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              className="w-full p-2 mb-3 bg-gray-700 text-white rounded-lg" />
+            <input
+              type="password"
+              placeholder="Password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full p-2 mb-3 bg-gray-700 text-white rounded-lg" />
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={newFullName}
+              onChange={(e) => setNewFullName(e.target.value)}
+              className="w-full p-2 mb-3 bg-gray-700 text-white rounded-lg" />
+            <select
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value as 'admin' | 'member')}
+              className="w-full p-2 mb-3 bg-gray-700 text-white rounded-lg"
+            >
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowCreateModal(false)} className="bg-gray-600 px-4 py-2 rounded-lg">Cancel</button>
+              <button onClick={handleCreateUser} className="bg-blue-500 px-4 py-2 rounded-lg">Create</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-center text-lg">Loading...</p>
@@ -70,8 +176,7 @@ export default function MembersPage() {
               <p className="text-gray-400">{user.email}</p>
               <button
                 onClick={() => handleDeleteUser(user.id)}
-                className="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all"
-              >
+                className="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all">
                 Delete User
               </button>
             </div>
