@@ -1,7 +1,11 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
 import { FiEdit } from 'react-icons/fi';
+import useFocusTrap from '../../hooks/useFocusTrap';
+import Card from '../../components/Card';
+import useDebounce from '../../hooks/useDebounce';
 
 interface User {
   id: string;
@@ -18,17 +22,29 @@ export default function MembersPage() {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newFullName, setNewFullName] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [newRole, setNewRole] = useState<'admin' | 'member'>('member');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editedFullName, setEditedFullName] = useState('');
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [updatingUser, setUpdatingUser] = useState(false);
+  const createModalRef = useFocusTrap(showCreateModal);
+  const editModalRef = useFocusTrap(showEditModal);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
       const { data, error } = await supabase.from('users').select('id, full_name, email, role');
-      if (error) console.error('Error fetching users:', error);
-      else setUsers(data || []);
+      if (error) {
+        console.error('Error fetching users:', error);
+        setErrorMessage('Failed to fetch users.');
+      } else {
+        setUsers(data || []);
+      }
       setLoading(false);
     };
 
@@ -41,64 +57,83 @@ export default function MembersPage() {
     const { error } = await supabase.from('users').delete().eq('id', userId);
     if (error) {
       console.error('Error deleting user:', error);
+      setErrorMessage('Failed to delete user.');
     } else {
-      setUsers(users.filter((user) => user.id !== userId));
+      setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userId));
+      setSuccessMessage('User deleted successfully.');
     }
   };
 
   const handleCreateUser = async () => {
     if (!newEmail || !newPassword || !newFullName) {
-      return alert('Please fill in all fields.');
+      setErrorMessage('Please fill in all fields.');
+      return;
     }
-
-    const { data, error } = await supabase.auth.signUp({
-      email: newEmail,
-      password: newPassword,
-      options: {
-        data: {
-          full_name: newFullName,
-          role: newRole,
+    setCreatingUser(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: newEmail,
+        password: newPassword,
+        options: {
+          data: {
+            full_name: newFullName,
+            role: newRole,
+          },
         },
-      },
-    });
+      });
 
-    if (error) {
-      console.error('Error creating user:', error);
-      alert(error.message);
-    } else {
-      console.log('User created successfully!', data);
-
-      // Insert user data into the users table
-      if (data.user) {
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert([
-            {
-              id: data.user.id,
-              email: newEmail,
-              full_name: newFullName,
-              role: newRole,
-            },
-          ]);
-
-        if (insertError) {
-          console.error('Error inserting user data:', insertError);
-          alert(insertError.message);
-        }
+      if (error) {
+        console.error('Error creating user:', error);
+        setErrorMessage(error.message);
       } else {
-        console.error('Error: data.user is null');
-        alert('Failed to create user. Please try again.');
-      }
+        console.log('User created successfully!', data);
+        setSuccessMessage('User created successfully!');
+        if (data.user) {
+          setUsers((prevUsers) => {
+            if (!data.user) return prevUsers;
+            return [
+              ...prevUsers,
+              {
+                id: data.user.id,
+                email: newEmail,
+                full_name: newFullName,
+                role: newRole,
+              },
+            ];
+          });
 
-      // Fetch users again to update the list
-      const { data: userData, error: userError } = await supabase.from('users').select('id, full_name, email, role');
-      if (userError) console.error('Error fetching users:', userError);
-      else setUsers(userData || []);
-      setShowCreateModal(false);
-      setNewEmail('');
-      setNewPassword('');
-      setNewFullName('');
-      setNewRole('member');
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert([
+              {
+                id: data.user.id,
+                email: newEmail,
+                full_name: newFullName,
+                role: newRole,
+              },
+            ]);
+
+          if (insertError) {
+            console.error('Error inserting user data:', insertError);
+            setErrorMessage(insertError.message);
+          }
+        } else {
+          console.error('Error: data.user is null');
+          setErrorMessage('Failed to create user. Please try again.');
+        }
+        setShowCreateModal(false);
+        setNewEmail('');
+        setNewPassword('');
+        setNewFullName('');
+        setNewRole('member');
+      }
+    } catch (err) {
+      console.error('Unexpected error during user creation:', err);
+      setErrorMessage((err as Error).message || 'Unexpected error occurred. Please try again.');
+    } finally {
+      setCreatingUser(false);
     }
   };
 
@@ -106,29 +141,49 @@ export default function MembersPage() {
     setEditingUser(user);
     setEditedFullName(user.full_name || '');
     setShowEditModal(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
   };
 
   const handleUpdateUser = async () => {
     if (!editingUser) return;
+    setUpdatingUser(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ full_name: editedFullName })
+        .eq('id', editingUser.id);
 
-    const { error } = await supabase
-      .from('users')
-      .update({ full_name: editedFullName })
-      .eq('id', editingUser.id);
-
-    if (error) {
-      console.error('Error updating user:', error);
-      alert(error.message);
-    } else {
-      // Update the user in the local state
-      setUsers(users.map((user) => (user.id === editingUser.id ? { ...user, full_name: editedFullName } : user)));
-      setShowEditModal(false);
-      setEditingUser(null);
-      setEditedFullName('');
+      if (error) {
+        console.error('Error updating user:', error);
+        setErrorMessage(error.message);
+      } else {
+        setUsers((prevUsers) =>
+          prevUsers.map((user) =>
+            user.id === editingUser.id ? { ...user, full_name: editedFullName } : user
+          )
+        );
+        setShowEditModal(false);
+        setEditingUser(null);
+        setEditedFullName('');
+        setSuccessMessage('User updated successfully!');
+      }
+    } catch (err) {
+      console.error('Error updating user:', err);
+      setErrorMessage((err as Error).message || 'Failed to update user.');
+    } finally {
+      setUpdatingUser(false);
     }
   };
 
-  const filteredUsers = users.filter((user) => user.role === activeTab);
+  const filteredUsers = users
+    .filter((user) => user.role === activeTab)
+    .filter((user) =>
+      user.full_name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+    );
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
@@ -142,7 +197,9 @@ export default function MembersPage() {
             onClick={() => setActiveTab(role as 'admin' | 'member')}
             className={
               "px-6 py-2 text-lg font-semibold rounded-lg transition-all duration-300 " +
-              (activeTab === role ? 'bg-blue-500 text-white' : 'bg-gray-700 hover:bg-gray-600')
+              (activeTab === role
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-700 hover:bg-gray-600')
             }
           >
             {role === 'admin' ? 'Admins' : 'Members'}
@@ -150,15 +207,41 @@ export default function MembersPage() {
         ))}
       </div>
 
+      {/* Search Bar */}
+      <input
+        type="text"
+        placeholder="Search users..."
+        className="w-full p-2 mb-4 bg-gray-700 text-white rounded-lg"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+
       <button
         onClick={() => setShowCreateModal(true)}
-        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg mb-4">
-        Create New User
+        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg mb-4"
+        disabled={creatingUser}
+      >
+        {creatingUser ? 'Creating...' : 'Create New User'}
       </button>
 
+      {/* Success and Error Messages */}
+      {successMessage && (
+        <div className="bg-green-500 text-white p-3 rounded-lg mb-4">
+          {successMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="bg-red-500 text-white p-3 rounded-lg mb-4">
+          {errorMessage}
+        </div>
+      )}
+
       {showCreateModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 transition-opacity duration-300"
+          onClick={() => setShowCreateModal(false)}
+        >
+          <div className="bg-gray-800 p-6 rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()} ref={createModalRef}>
             <h2 className="text-xl font-bold mb-4">Create New User</h2>
             <input
               type="email"
@@ -188,15 +271,20 @@ export default function MembersPage() {
             </select>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowCreateModal(false)} className="bg-gray-600 px-4 py-2 rounded-lg">Cancel</button>
-              <button onClick={handleCreateUser} className="bg-blue-500 px-4 py-2 rounded-lg">Create</button>
+              <button onClick={handleCreateUser} className="bg-blue-500 px-4 py-2 rounded-lg" disabled={creatingUser}>
+                {creatingUser ? 'Creating...' : 'Create'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {showEditModal && editingUser && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 transition-opacity duration-300"
+          onClick={() => setShowEditModal(false)}
+        >
+          <div className="bg-gray-800 p-6 rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()} ref={editModalRef}>
             <h2 className="text-xl font-bold mb-4">Edit User</h2>
             <input
               type="text"
@@ -206,7 +294,9 @@ export default function MembersPage() {
               className="w-full p-2 mb-3 bg-gray-700 text-white rounded-lg" />
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowEditModal(false)} className="bg-gray-600 px-4 py-2 rounded-lg">Cancel</button>
-              <button onClick={handleUpdateUser} className="bg-blue-500 px-4 py-2 rounded-lg">Update</button>
+              <button onClick={handleUpdateUser} className="bg-blue-500 px-4 py-2 rounded-lg" disabled={updatingUser}>
+                {updatingUser ? 'Updating...' : 'Update'}
+              </button>
             </div>
           </div>
         </div>
@@ -215,11 +305,19 @@ export default function MembersPage() {
       {loading ? (
         <p className="text-center text-lg">Loading...</p>
       ) : filteredUsers.length === 0 ? (
-        <p className="text-center text-lg">No users found.</p>
+        <div className="text-center">
+          <p className="text-lg">No users found.</p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg mt-4"
+          >
+            Add New User
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredUsers.map((user) => (
-            <div key={user.id} className="bg-gray-800 p-5 rounded-lg shadow-lg flex flex-col items-center">
+            <Card key={user.id}>
               <div className="flex items-center justify-between w-full">
                 <h3 className="text-xl font-semibold">{user.full_name || 'No Name'}</h3>
                 <button
@@ -232,10 +330,11 @@ export default function MembersPage() {
               <p className="text-gray-400">{user.email}</p>
               <button
                 onClick={() => handleDeleteUser(user.id)}
-                className="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all">
+                className="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all"
+              >
                 Delete User
               </button>
-            </div>
+            </Card>
           ))}
         </div>
       )}
