@@ -43,10 +43,10 @@ export default function CreateProject() {
     // Insert new project
     const { error } = await supabase
       .from('projects')
-      .insert([{ 
-        name: projectName, 
-        description: projectDescription, 
-        owner_id: userId, 
+      .insert([{
+        name: projectName,
+        description: projectDescription,
+        owner_id: userId,
       }]);
 
     if (error) {

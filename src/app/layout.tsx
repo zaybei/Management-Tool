@@ -11,11 +11,18 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname();
 
+  // Check if we're on the homepage, signin, or signup page
+  const isHomePage = pathname === '/';
+  const isAuthPage = pathname === '/signin' || pathname === '/signup';
+  const shouldShowNavbar = isHomePage || isAuthPage;
+
   return (
     <html lang="en">
       <body className="bg-gray-900 text-white">
-        {pathname && pathname.startsWith('/dashboard') ? null : <Navbar />}
-        {children}
+        {shouldShowNavbar && <Navbar />}
+        <div className="container mx-auto p-4">
+          {children}
+        </div>
       </body>
     </html>
   );

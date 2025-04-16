@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { supabase } from '../../../../utils/supabaseClient';
 
 // Define interfaces for task and comment data
@@ -24,7 +24,6 @@ interface Comment {
 export default function TaskDetails() {
   const params = useParams();
   const id = params?.id ? (Array.isArray(params.id) ? params.id[0] : params.id) : null;
-  const router = useRouter();
 
   const [task, setTask] = useState<Task | null>(null); // Use Task type here
   const [comments, setComments] = useState<Comment[]>([]); // Use Comment array type here
@@ -75,67 +74,67 @@ export default function TaskDetails() {
   const handleStatusChange = async () => {
     const confirmChange = window.confirm('Are you sure you want to change the status?');
     if (!confirmChange) return;
-  
+
     const { error } = await supabase.from('tasks').update({ status }).eq('id', id);
     if (error) {
       console.error('Error updating status:', error);
       alert('Failed to update status');
       return;
     }
-  
+
     // Refresh task details after status update
     const { data: taskData, error: taskError } = await supabase
       .from('tasks')
       .select('id, title, description, status, due_date, project:project_id(name)')
       .eq('id', id)
       .single();
-  
+
     if (taskError) {
       console.error('Error fetching updated task:', taskError);
       alert('Failed to fetch updated task');
       return;
     }
-  
+
     if (taskData) {
       const project = Array.isArray(taskData.project) ? taskData.project[0] : taskData.project;
       setTask({ ...taskData, project });
       setStatus(taskData.status);  // Ensure status is updated in state
     }
-  
+
     alert('Status updated successfully!');
   };
-  
+
 
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
-  
+
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (!userData?.user || userError) {
       console.error('Error fetching user:', userError);
       return;
     }
-  
+
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('full_name')
       .eq('id', userData.user.id)
       .single();
-  
+
     if (profileError || !userProfile) {
       console.warn('User profile not found, using default name.');
     }
-  
+
     const fullName = userProfile?.full_name ?? 'Unknown User';
-  
+
     const { error: commentError } = await supabase.from('comments').insert([
       { task_id: id, user_id: userData.user.id, content: newComment }
     ]);
-  
+
     if (commentError) {
       console.error('Error adding comment:', commentError);
       return;
     }
-  
+
     const newCommentObj = {
       id: Date.now(), // Temporary ID until we get the real one from the database
       content: newComment,
@@ -143,7 +142,7 @@ export default function TaskDetails() {
       created_at: new Date().toISOString(),
     };
     setComments([...comments, newCommentObj]);
-  
+
     setNewComment('');
   };
 
@@ -152,9 +151,7 @@ export default function TaskDetails() {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8 flex flex-col items-center">
       <div className="w-full max-w-3xl">
-        <button onClick={() => router.back()} className="text-blue-400 mb-4 hover:underline">
-          ← Back
-        </button>
+
 
         <div className="bg-gray-800 p-6 rounded-lg shadow-md">
           <h1 className="text-3xl font-bold mb-2">{task?.title}</h1>
